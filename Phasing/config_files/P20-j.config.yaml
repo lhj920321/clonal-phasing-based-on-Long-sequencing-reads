@@ -1,0 +1,12 @@
+person: "P20"
+CCS_Sample: "P20-C_bR-j"
+REF_Sample: "P20-C_bR-t"
+software_Path: /home/try/Documents/projects/liuhj-Other/phasing-2024
+iSNVtable_P: /home/try/Documents/projects/liuhj-Other/phasing-2024/reliable_locus
+refFasta_path: /disk/lhj_4T/lhj/HP/process/assembly/all_genomes
+bam_path: /disk/lhj_4T/lhj/HP/process/CCS_map2PersonRespectSamp/ngmlr
+OUT_path: /home/try/Documents/projects/liuhj-Other/phasing-2024/haplotype-read
+
+
+
+

@@ -1,0 +1,4 @@
+/shared/liuhj/HP/process/NGS_map2PersonResptGnm/ntfreq/P1-E-d_2_P1-E-j.sort.rmdup.Header.mpileup.ntfreq
+/shared/liuhj/HP/process/NGS_map2PersonResptGnm/ntfreq/P1-E-j_2_P1-E-j.sort.rmdup.Header.mpileup.ntfreq
+/shared/liuhj/HP/process/NGS_map2PersonResptGnm/ntfreq/P1-E-t_2_P1-E-j.sort.rmdup.Header.mpileup.ntfreq
+/shared/liuhj/HP/process/NGS_map2PersonResptGnm/ntfreq/P1-E-x_2_P1-E-j.sort.rmdup.Header.mpileup.ntfreq

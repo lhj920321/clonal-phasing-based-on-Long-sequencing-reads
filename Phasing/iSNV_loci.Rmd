@@ -1,0 +1,772 @@
+---
+title: "stat_of_iSNV_SNP_loci"
+output: html_document
+date: "2024-06-25"
+---
+
+##library
+```{r}
+library("ggplot2")
+library("dplyr")
+library("stringr")
+#library("ggpubr")
+
+O.path <- "/home/try/Documents/projects/liuhj-Other/results_2024/"
+
+```
+
+
+#stat for SNP and iSNV locus, filter NA and repeat regions
+```{r}
+SNPnums <- c()
+SNVnums <- c()
+SNVshareNums <- c()
+SNVUniqNums <- c()
+Persons <- c()
+Pers <- c(seq(1,12),seq(15,25)) 
+#Pers <- c(1) 
+E.pers <- c()
+C.pers <- c()
+for (Per.id in Pers) {
+  Per <- paste0("P",Per.id)
+  Persons <- c(Persons,Per)
+  if(Per.id < 13){
+    E.pers <- c(E.pers,Persons)
+  }
+  if(Per.id > 13){
+    C.pers <- c(C.pers,Persons)
+  }
+  # iSNVtable.P <- "/disk/lhj_4T/lhj/HP/process/NGS_map2PersonResptGnm/table/"
+  # iSNVtable.F <- paste0(iSNVtable.P,Per,"/","all.iSNV_with_SNP.pyResults.txt")
+  iSNVtable.P <- "/disk/lhj_4T/lhj/HP/process/NGS_map2PersonResptGnm/table_filtedRepeat_NA/"
+  iSNVtable.F <- paste0(iSNVtable.P,Per,".Filted-Repeat_NA.all.iSNV_with_SNP.pyResults.txt")
+  iSNVtable <- read.table(iSNVtable.F,sep = "\t",header = T,comment.char = " ")
+  rownames(iSNVtable) <- iSNVtable$X.Posi
+  iSNVtable$X.Posi <- NULL
+  # iSNVtable$snv.SNP <- NULL
+  # iSNVtable <- iSNVtable[rowSums(is.na(iSNVtable)) == 0,]
+
+  stat.df <-  rowSums(as.matrix(iSNVtable)>=0.95 & as.matrix(iSNVtable)!="NO" ) %>% as.data.frame()
+  colnames(stat.df) <- "count.SNP"
+  stat.df$Locus <- rownames(stat.df)
+  SNV.stat.df <-  rowSums(as.matrix(iSNVtable)>=0.05 & as.matrix(iSNVtable)<0.95 & as.matrix(iSNVtable)!="NO" ) %>% as.data.frame()
+  colnames(SNV.stat.df) <- "count.SNV"
+  SNV.stat.df$Locus <- rownames(SNV.stat.df)
+  # m.df <- merge(stat.df,SNV.stat.df)
+  all.df <- merge(stat.df,SNV.stat.df)
+  
+  SNP.loci <-  nrow(all.df %>% filter(count.SNP >= 1))
+  SNV.loci <-  nrow(all.df %>% filter(count.SNV >= 1,
+                                      count.SNP == 0))
+  SNV.loci.lst2 <-  nrow(all.df %>% filter(count.SNV >= 2,
+                                      count.SNP == 0))
+  SNV.loci.ReginUniq <-  nrow(all.df %>% filter(count.SNV == 1,
+                                      count.SNP == 0))
+  print(SNP.loci)
+  SNPnums <- c(SNPnums,SNP.loci)
+  SNVnums <- c(SNVnums,SNV.loci)
+  SNVshareNums <- c(SNVshareNums,SNV.loci.lst2)
+  SNVUniqNums <- c(SNVUniqNums,SNV.loci.ReginUniq)
+}
+
+NumStat.df <-  data.frame("Person" = Persons,
+           "SNP_Locus.0.95-1" = SNPnums,
+           "SNV_Locus.0.05-0.94" = SNVnums,
+           "SNV_Locus.share" = SNVshareNums,
+           "SNV_Locus.unique" = SNVUniqNums
+           )
+NumStat.df <- NumStat.df %>% mutate(group = case_when(Person %in% E.pers ~ "E.group",
+                                                      Person %in% C.pers ~ "C.group",
+                                                      TRUE ~ "Other") )
+write.table(NumStat.df,paste0(O.path,"SNP.iSNV.locus.stat.txt"),quote = F,row.names = F,sep = "\t")
+
+
+#SNP loci stat plot
+NumStat.df.2 <- NumStat.df
+all.order <- c()
+E.d <- NumStat.df[NumStat.df$group == "E.group",]
+E.d.s <- E.d[order(E.d$SNP_Locus.0.95.1) , ]
+all.order <- c(all.order,E.d.s$Person) 
+C.d <- NumStat.df[NumStat.df$group == "C.group",]
+C.d.s <- C.d[order(C.d$SNP_Locus.0.95.1) , ]
+all.order <- c(all.order,C.d.s$Person) 
+
+P.value <- wilcox.test(NumStat.df$SNP_Locus.0.95.1[NumStat.df$group == "E.group"],NumStat.df$SNP_Locus.0.95.1[NumStat.df$group == "C.group"])
+NumStat.df$Person <- factor(NumStat.df$Person,levels = all.order)
+p <-  ggplot(data = NumStat.df, aes(x=Person,y=SNP_Locus.0.95.1,fill = group) ) + 
+  geom_bar(stat = "identity") + 
+  theme_bw() + 
+  theme(panel.grid = element_blank()) + 
+  ylab("No. of SNP Loci") 
+ggsave(p,file = paste0(O.path,"SNP.loci.barplot.pdf"),height = 3,width = 8)
+NumStat.df$group <- factor(NumStat.df$group,levels = c("E.group","C.group"))
+p.box <-  ggplot(data = NumStat.df, aes(x=group,y=SNP_Locus.0.95.1/1000) ) +
+  geom_boxplot() +
+  stat_boxplot(geom = "errorbar") +
+  geom_jitter(width =0.2,shape = 21,size=1.5)+
+  annotate("text",x= 1,y=1,label = round(P.value$p.value,4) ) + 
+  theme_bw() + 
+  theme(panel.grid = element_blank()) + 
+  ylab("No. of SNP Loci") 
+ggsave(p.box,file = paste0(O.path,"SNP.loci.boxplot.pdf"),height = 2,width = 2)
+
+
+all.order <- c()
+No.P8.P22 <- NumStat.df.2[!NumStat.df.2$Person %in% c("P8","P22"),]
+E.d <- No.P8.P22[No.P8.P22$group == "E.group",]
+E.d.s <- E.d[order(E.d$SNV_Locus.0.05.0.94) , ]
+all.order <- c(all.order,E.d.s$Person) 
+C.d <- No.P8.P22[No.P8.P22$group == "C.group",]
+C.d.s <- C.d[order(C.d$SNV_Locus.0.05.0.94) , ]
+all.order <- c(all.order,C.d.s$Person) 
+No.P8.P22$Person <- factor(No.P8.P22$Person,levels = all.order)
+p <-  ggplot(data = No.P8.P22, aes(x=Person,y=SNV_Locus.0.05.0.94/1000,fill = group) ) +
+  geom_bar(stat = "identity") + 
+  theme_bw() + 
+  theme(panel.grid = element_blank()) + 
+  ylab("No. of iSNV Loci") 
+ggsave(p,file = paste0(O.path,"iSNV.loci.barplot.pdf"),height = 3,width = 8)
+
+P.value <- wilcox.test(No.P8.P22$SNP_Locus.0.95.1[No.P8.P22$group == "E.group"],No.P8.P22$SNP_Locus.0.95.1[No.P8.P22$group == "C.group"])
+
+
+No.P8.P22.stack <- melt(No.P8.P22[,c("Person","SNV_Locus.share","SNV_Locus.unique")],
+            measure.vars = c("SNV_Locus.share","SNV_Locus.unique"),variable.name = "type",value.name = "SNVlocusNum")
+
+p <-  ggplot(data = No.P8.P22.stack, aes(x=Person,y=SNVlocusNum/1000,fill = type) ) +
+  geom_bar(stat ="identity",position = "stack") + 
+  theme_bw() + 
+  theme(panel.grid = element_blank()) + 
+  ylab("No. of iSNV Loci") +
+  geom_hline(aes(yintercept=2),linetype="dashed")
+ggsave(p,file = paste0(O.path,"iSNV.loci.share.Unique.barplot.pdf"),height = 3,width = 9)
+
+
+
+No.P8.P22$group <- factor(No.P8.P22$group,levels = c("E.group","C.group"))
+p.box <-  ggplot(data = No.P8.P22, aes(x=group,y=SNV_Locus.0.05.0.94/1000) ) +
+  geom_boxplot() +
+  stat_boxplot(geom = "errorbar") +
+  annotate("text",x= 1,y=1,label = round(P.value$p.value,4)) + 
+  geom_jitter(width =0.2,shape = 21,size=1.5)+
+  theme_bw() + 
+  theme(panel.grid = element_blank()) + 
+  ylab("No. of SNP Loci") 
+ggsave(p.box,file = paste0(O.path,"iSNV.loci.boxplot.pdf"),height = 2,width = 2)
+
+
+
+
+###P8 & P22
+all.order <- c()
+P8.P22 <- NumStat.df.2[NumStat.df.2$Person %in% c("P8","P22"),]
+E.d <- P8.P22[P8.P22$group == "E.group",]
+E.d.s <- E.d[order(E.d$SNV_Locus.0.05.0.94) , ]
+all.order <- c(all.order,E.d.s$Person) 
+C.d <- P8.P22[P8.P22$group == "C.group",]
+C.d.s <- C.d[order(C.d$SNV_Locus.0.05.0.94) , ]
+all.order <- c(all.order,C.d.s$Person) 
+P8.P22$Person <- factor(P8.P22$Person,levels = all.order)
+
+
+P8.P22.stack <- melt(P8.P22[,c("Person","SNV_Locus.share","SNV_Locus.unique")],
+            measure.vars = c("SNV_Locus.share","SNV_Locus.unique"),variable.name = "type",value.name = "SNVlocusNum")
+
+p <-  ggplot(data = P8.P22.stack, aes(x=Person,y=SNVlocusNum/1000,fill = type) ) +
+  geom_bar(stat ="identity",position = "stack") + 
+  theme_bw() + 
+  theme(panel.grid = element_blank()) + 
+  ylab("No. of iSNV Loci") #s+
+  #geom_hline(aes(yintercept=1),linetype="dashed")
+ggsave(p,file = paste0(O.path,"P8.P22.iSNV.loci.share.Unique.barplot.pdf"),height = 3,width = 4)
+```
+
+
+##distribution of iSNV freq for each sample 
+```{r}
+SNPnums <- c()
+SNVnums <- c()
+SNVshareNums <- c()
+SNVUniqNums <- c()
+Persons <- c()
+O.list <- list()
+
+Pers <- c(seq(1,12),seq(15,25)) 
+for (Per.id in Pers) {
+  Per <- paste0("P",Per.id)
+  Persons <- c(Persons,Per)
+
+  # iSNVtable.P <- "/disk/lhj_4T/lhj/HP/process/NGS_map2PersonResptGnm/table/"
+  # iSNVtable.F <- paste0(iSNVtable.P,Per,"/","all.iSNV_with_SNP.pyResults.txt")
+  iSNVtable.P <- "/disk/lhj_4T/lhj/HP/process/NGS_map2PersonResptGnm/table_filtedRepeat_NA/"
+  iSNVtable.F <- paste0(iSNVtable.P,Per,".Filted-Repeat_NA.all.iSNV_with_SNP.pyResults.txt")
+  iSNVtable <- read.table(iSNVtable.F,sep = "\t",header = T,comment.char = " ")
+  rownames(iSNVtable) <- iSNVtable$X.Posi
+  iSNVtable$X.Posi <- NULL
+  sampIDs <- c()
+  for (smp in colnames(iSNVtable)) {
+   smp.1 <-  strsplit(smp,"_2_")[[1]][1]
+   if(strsplit(smp.1,"[.]")[[1]][3] == "d" ){
+     samp.ID <- "A1"
+   }
+    if(strsplit(smp.1,"[.]")[[1]][3] == "x"  ){
+     samp.ID <- "A2"
+    }
+    if(strsplit(smp.1,"[.]")[[1]][3] == "j" ){
+     samp.ID <- "IA"
+    }
+    if(strsplit(smp.1,"[.]")[[1]][3] == "t" ){
+     samp.ID <- "C"
+    }
+   sampIDs <- c(sampIDs,samp.ID)
+  } 
+  colnames(iSNVtable) <- sampIDs 
+  comp.samps <- colnames(iSNVtable)
+  
+  SNP.iSNV.num <- rowSums(iSNVtable>=0.05&iSNVtable!="NO") %>% as.data.frame()
+  colnames(SNP.iSNV.num) <- "Share.Num"
+  iSNVtable$Locus <- rownames(iSNVtable)
+  SNP.iSNV.num$Locus <- rownames(SNP.iSNV.num)
+  iSNVtable <-  merge(iSNVtable,SNP.iSNV.num)
+  iSNVtable <- iSNVtable %>% mutate(shareFlag = case_when(Share.Num == 4 ~ "share4",
+                                                          Share.Num == 3 ~ "share3",
+                                                          Share.Num == 2 ~ "share2",
+                                                          TRUE ~ "region-specific"))
+  
+  tot.df <- data.frame()
+  for (SP in comp.samps) {
+    for (L in seq(0,1,0.02)) {
+      select.df <-  iSNVtable %>% filter(.data[[SP]] != "NO",
+                           .data[[SP]] >= L,
+                           .data[[SP]] < L + 0.02) 
+     stat.seledf <-  table(select.df$shareFlag) %>% as.data.frame()
+     if(nrow(stat.seledf) != 0){
+      stat.seledf$sample <- SP
+      stat.seledf$Left <- L  
+       if(nrow(tot.df) == 0){
+         tot.df <- stat.seledf
+       }else{
+         tot.df <- rbind(tot.df,stat.seledf)
+       }
+      }
+    }}
+
+tot.df$Var1 <- factor(tot.df$Var1,levels = c("share4","share3","share2","region-specific"))
+# colors <- c("green","orange","red","blue")
+p <-  ggplot(data = tot.df, aes(x=Left,y=Freq/1000,fill = Var1) ) +
+  geom_bar(stat ="identity",position = "stack") +
+  theme_bw() +
+  theme(panel.grid = element_blank()) +
+  ylab("SNV no(kilo)")  + 
+  xlab("MuAF") + 
+  #scale_color_manual(values = colors) +
+  scale_fill_manual(values=c("share4" = "#9C27B0", "share3" = "#FF9800", "share2" = "#4CAF50" , "region-specific" = "#03A9F4")) +
+  facet_grid(sample ~ .)
+  #geom_hline(aes(yintercept=1),linetype="dashed")
+ggsave(p,file = paste0(O.path,Per.id,".iSNV.share.Unique.histplot.pdf"),height = 3,width = 4)
+tot.df$person <- Per.id
+O.list[[paste0("P",Per.id) ]] <- tot.df
+ }
+write.xlsx(O.list,paste0(O.path,"All.Samps.iSNV.shared.xlsx"))
+```
+
+
+
+## SNV SNP type stat
+## syn, miss, stop gain
+```{r}
+iSNVtable.P <- "/disk/lhj_4T/lhj/HP/process/NGS_map2PersonResptGnm/table_filtedRepeat_NA/"
+Annotable.P <- "/disk/lhj_4T/lhj/HP/process/NGS_map2PersonResptGnm/table/allvsf_anno/"
+SNP.all <- data.frame()
+SNV.all <- data.frame()
+Pers <- c(seq(1,12),seq(15,25)) 
+for (Per.id in Pers) {
+  print(Per.id)
+  Per <- paste0("P",Per.id)
+  Persons <- c(Persons,Per)
+  iSNVtable.F <- paste0(iSNVtable.P,Per,".Filted-Repeat_NA.all.iSNV_with_SNP.pyResults.txt")
+  iSNVtable <- read.table(iSNVtable.F,sep = "\t",header = T,comment.char = " ")
+  rownames(iSNVtable) <- iSNVtable$X.Posi
+  iSNVtable$X.Posi <- NULL
+
+  sampIDs <- c()
+  posi.df <-  rownames(iSNVtable) %>% as.data.frame()
+  colnames(posi.df) <- "Locus"
+  posi.df$Anno <- ""
+  
+  all.Anno <- data.frame()
+  for (smp.1 in colnames(iSNVtable)) {
+    smp.2 <- gsub("[.]", "-", smp.1)
+    annF <- paste0(Annotable.P,smp.2, ".minFreq0.02.snpEffAnno.vcf")
+    Annotable <- read.table(annF,sep = "\t",header = F,comment.char = "#")
+    Annotable$Anno <- str_split_fixed(str_split_fixed(Annotable$V8,";",7)[,6],"[|]",3)[,2]  
+ 
+   Annotable.sub <- Annotable[,c("V2","Anno" )]
+   colnames(Annotable.sub) <- c("Locus","Anno") 
+   all.Anno <- rbind(all.Anno,Annotable.sub)
+  }
+  all.Anno <- unique(all.Anno)
+  
+  
+  stat.df <-  rowSums(as.matrix(iSNVtable)>=0.95 & as.matrix(iSNVtable)!="NO" ) %>% as.data.frame()
+  colnames(stat.df) <- "count.SNP"
+  stat.df$Locus <- rownames(stat.df)
+  SNV.stat.df <-  rowSums(as.matrix(iSNVtable)>=0.05 & as.matrix(iSNVtable)<0.95 & as.matrix(iSNVtable)!="NO" ) %>% as.data.frame()
+  colnames(SNV.stat.df) <- "count.SNV"
+  SNV.stat.df$Locus <- rownames(SNV.stat.df)
+  mg.df <- merge(stat.df,SNV.stat.df)
+  mg.df <- merge(mg.df,all.Anno)
+
+  SNP.sdf <- mg.df[mg.df$count.SNP>=1,]
+  SNP.anno.df <-  table(SNP.sdf$Anno) %>% as.data.frame()
+  if(nrow(SNP.anno.df)!=0){
+    SNP.anno.df$Person <- Per 
+    SNP.all <- rbind(SNP.all,SNP.anno.df)
+  }  
+  SNV.sdf <- mg.df[mg.df$count.SNV>=1 & mg.df$count.SNP == 0,]
+  SNV.anno.df <-  table(SNV.sdf$Anno) %>% as.data.frame()
+  if(nrow(SNV.anno.df)!=0){
+  SNV.anno.df$Person <- Per
+    SNV.all <- rbind(SNV.all,SNV.anno.df)
+  }
+}
+
+SNP.all <- na.omit(SNP.all)
+SNV.all <- na.omit(SNV.all)
+
+
+library("reshape2")
+SNP.all.wd <- dcast(SNP.all, Person ~ Var1,value.var = "Freq",fill = 0) 
+SNV.all.wd <- dcast(SNV.all, Person ~ Var1,value.var = "Freq",fill = 0) 
+
+rownames(SNP.all.wd) <-  SNP.all.wd$Person
+SNP.all.wd$Person <- NULL
+SNP.all.wd$sum <-  rowSums(SNP.all.wd) 
+SNP.all.wd$upstream <-   SNP.all.wd$upstream_gene_variant
+SNP.all.wd <- SNP.all.wd %>% 
+  mutate(other = sum-missense_variant-synonymous_variant-stop_gained-upstream) 
+SNP.all.wd$Person <- rownames(SNP.all.wd)
+SNP.all.wd.O <- SNP.all.wd[,c("Person","synonymous_variant","missense_variant","stop_gained","upstream_gene_variant","other")]
+
+
+rownames(SNV.all.wd) <-  SNV.all.wd$Person
+SNV.all.wd$Person <- NULL
+SNV.all.wd$sum <-  rowSums(SNV.all.wd) 
+SNV.all.wd$upstream <-   SNV.all.wd$upstream_gene_variant
+SNV.all.wd <- SNV.all.wd %>% 
+  mutate(other = sum-missense_variant-synonymous_variant-stop_gained-upstream) 
+SNV.all.wd$Person <- rownames(SNV.all.wd)
+SNV.all.wd.O <- SNV.all.wd[,c("Person","synonymous_variant","missense_variant","stop_gained","upstream_gene_variant","other")]
+
+O.list <- list()
+O.list[["SNP.anno.stat"]] <- SNP.all.wd.O
+O.list[["SNV.anno.stat"]] <- SNV.all.wd.O
+write.xlsx(O.list,paste0(O.path,"All.Pers.SNP.iSNV.AnnoStat.xlsx"))
+
+```
+
+
+##wilkson test for miss
+```{r}
+E.pers <- c()
+C.pers <- c()
+Pers <- c(seq(1,25)) 
+
+for (Per.id in Pers) {
+  print(Per.id)
+  Per <- paste0("P",Per.id)
+  Persons <- c(Persons,Per)
+  if(Per.id < 15){
+    E.pers <- c(E.pers,Per)
+  }
+  if(Per.id >= 15){
+    C.pers <- c(C.pers,Per)
+  }
+}
+
+###### SNP
+SNP.ddf <- SNP.all.wd
+SNP.ddf <- SNP.ddf %>% mutate(group = case_when(Person %in% E.pers ~ "E.group",
+                                                      Person %in% C.pers ~ "C.group",
+                                                      TRUE ~ "Other") )
+
+P.value <- wilcox.test(SNP.ddf$missense_variant[SNP.ddf$group == "E.group"],SNP.ddf$missense_variant[SNP.ddf$group == "C.group"])
+SNP.ddf$group <- factor(SNP.ddf$group,levels = c("E.group","C.group"))
+p.box <-  ggplot(data = SNP.ddf, aes(x=group,y=missense_variant) ) +
+  geom_boxplot() +
+  stat_boxplot(geom = "errorbar") +
+  geom_jitter(width =0.2,shape = 21,size=1.5)+
+  annotate("text",x= 2,y=1000,label = paste0("P=",as.character(round(P.value$p.value,3)))   ) + 
+  theme_bw() + 
+  theme(panel.grid = element_blank()) + 
+  ylab("No. of missense SNP Loci") 
+ggsave(p.box,file = paste0(O.path,"SNP.loci.Anno.miss.boxplot.pdf"),height = 3,width = 3)
+
+
+######### SNV
+SNV.ddf <- SNV.all.wd
+SNV.ddf <- SNV.ddf %>% mutate(group = case_when(Person %in% E.pers ~ "E.group",
+                                                      Person %in% C.pers ~ "C.group",
+                                                      TRUE ~ "Other") )
+SNV.ddf <- SNV.ddf %>% filter(!Person %in% c("P8","P22") )
+P.value <- wilcox.test(SNV.ddf$missense_variant[SNV.ddf$group == "E.group"],
+                       SNV.ddf$missense_variant[SNV.ddf$group == "C.group"])
+SNV.ddf$group <- factor(SNV.ddf$group,levels = c("E.group","C.group"))
+p.box <-  ggplot(data = SNV.ddf, aes(x=group,y=missense_variant) ) +
+  geom_boxplot() +
+  stat_boxplot(geom = "errorbar") +
+  geom_jitter(width =0.2,shape = 21,size=1.5)+
+  annotate("text",x= 2,y=1000,label = paste0("P=",as.character(round(P.value$p.value,3)))   ) + 
+  theme_bw() + 
+  theme(panel.grid = element_blank()) + 
+  ylab("No. of missense SNV Loci") 
+ggsave(p.box,file = paste0(O.path,"SNV.loci.Anno.miss.boxplot.pdf"),height = 3,width = 3)
+
+
+
+```
+
+
+## SNV, single sample
+```{r}
+iSNVtable.P <- "/disk/lhj_4T/lhj/HP/process/NGS_map2PersonResptGnm/table_filtedRepeat_NA/"
+Annotable.P <- "/disk/lhj_4T/lhj/HP/process/NGS_map2PersonResptGnm/table/allvsf_anno/"
+SNV.all <- data.frame()
+ s.df <- list()
+Pers <- c(seq(1,12),seq(15,25)) 
+#Pers <- c(seq(1)) 
+persIDs <- c()
+for (Per.id in Pers) {
+  print(Per.id)
+  Per <- paste0("P",Per.id)
+  Persons <- c(Persons,Per)
+  iSNVtable.F <- paste0(iSNVtable.P,Per,".Filted-Repeat_NA.all.iSNV_with_SNP.pyResults.txt")
+  iSNVtable <- read.table(iSNVtable.F,sep = "\t",header = T,comment.char = " ")
+  rownames(iSNVtable) <- iSNVtable$X.Posi
+  iSNVtable$X.Posi <- NULL
+
+  SNV.stat.df <-  rowSums(as.matrix(iSNVtable)>=0.05 & as.matrix(iSNVtable)<0.95 & as.matrix(iSNVtable)!="NO" ) %>% as.data.frame()
+   colnames(SNV.stat.df) <- "count.SNV"
+   SNV.stat.df$Locus <- rownames(SNV.stat.df)
+  
+  # all.Anno <- data.frame()
+  # for (smp.1 in colnames(iSNVtable)) {
+  #   smp.2 <- gsub("[.]", "-", smp.1)
+  #   annF <- paste0(Annotable.P,smp.2, ".minFreq0.02.snpEffAnno.vcf")
+  #   Annotable <- read.table(annF,sep = "\t",header = F,comment.char = "#")
+  #   Annotable$Anno <- str_split_fixed(str_split_fixed(Annotable$V8,";",7)[,6],"[|]",3)[,2]  
+  # 
+  #  Annotable.sub <- Annotable[,c("V2","Anno" )]
+  #  colnames(Annotable.sub) <- c("Locus","Anno") 
+  #  all.Anno <- rbind(all.Anno,Annotable.sub) 
+  # }
+  # all.Anno <- all.Anno %>% unique()
+  #  
+  # 
+  #  for (smp.1 in colnames(iSNVtable)) {
+  #    samp.iSNV <- iSNVtable[,c(smp.1,smp.1)]
+  #    samp.iSNV$Locus <- rownames(samp.iSNV)
+  #    samp.iSNV <- samp.iSNV[,c("Locus",smp.1)]
+  #    colnames(samp.iSNV)[2] <- "Freq"
+  #    samp.iSNV <- samp.iSNV  %>% filter(Freq != "NO",
+  #                                       Freq>=0.05,
+  #                                       Freq<0.95 )
+  #    anno.df <- merge(samp.iSNV,all.Anno,all.x = T)
+  #    
+  #    s.df <- table(anno.df$Anno) %>% as.data.frame()
+  #    s.df$sum <- nrow(s.df)
+  #  }
+  # 
+ 
+   for (smp.1 in colnames(iSNVtable)) {
+     smp.r <-  strsplit(smp.1,"_2_")[[1]][1]
+     if(strsplit(smp.r,"[.]")[[1]][3] == "d" ){
+       samp.ID <- "A1"
+     }
+      if(strsplit(smp.r,"[.]")[[1]][3] == "x"  ){
+       samp.ID <- "A2"
+      }
+      if(strsplit(smp.r,"[.]")[[1]][3] == "j" ){
+       samp.ID <- "IA"
+      }
+      if(strsplit(smp.r,"[.]")[[1]][3] == "t" ){
+       samp.ID <- "C"
+      }
+     samp.iSNV <- iSNVtable[,c(smp.1,smp.1)]
+     samp.iSNV$Locus <- rownames(samp.iSNV)
+     samp.iSNV <- samp.iSNV[,c("Locus",smp.1)]
+     colnames(samp.iSNV)[2] <- "Freq"
+     samp.iSNV <- samp.iSNV  %>% filter(Freq != "NO",
+                                        Freq>=0.05,
+                                        Freq<0.95 )
+    if(Per.id <= 15){group = "E group"  }
+    if(Per.id > 15){group = "C group" }
+    s.df[[smp.1]] <- c(smp.1,strsplit(smp.r,"[.]")[[1]][1],samp.ID,group,nrow(samp.iSNV))
+   }
+   ps <- strsplit(smp.r,"[.]")[[1]][1]
+   if(!ps %in% persIDs){  persIDs <- c(persIDs,ps)}
+}
+  
+ s.df1 <- s.df %>% as.data.frame()
+s.df2 <- t(s.df1) %>% as.data.frame()
+colnames(s.df2) <- c("comp","Person","Region","group","SNVnum")
+s.df2$SNVnum <- as.numeric(s.df2$SNVnum)
+ 
+s.df2$Person <- factor(s.df2$Person,levels = persIDs)
+p.pont <-  ggplot(data = s.df2, aes(x=Person,y=SNVnum/1000,color = Region) ) +
+  #geom_boxplot() +
+  #stat_boxplot(geom = "errorbar") +
+  geom_jitter(width =0.2,size=1.5)+  #shape = 21,
+  scale_y_continuous(
+    breaks = c(0, 5, 10,20, 30, 40, 50),  # 设置 y 轴刻度
+    labels = c("0", "5", "10","20", "30", "40", "50")  # 对应的标签
+  ) +
+  geom_hline(aes(yintercept=2),linetype="dashed") +
+  theme_bw() + 
+  theme(panel.grid = element_blank()) + 
+  ylab("No. of SNV") 
+ggsave(p.pont,file = paste0(O.path,"SNV.each sample.stat.pdf"),height = 2,width = 8)
+
+
+ O.list <- list()
+ O.list[["SNA for each sample"]] <- s.df2
+ write.xlsx(O.list,paste0(O.path,"All.Pers.SNV.for each sample.xlsx"))
+
+ 
+ ##boxplot
+ s.df2 <- s.df2 %>% filter(!comp %in% c("P8.E.d_2_P8.E.x","P22.C_sL.t_2_P22.C_sL.d") )
+P.value <- wilcox.test(s.df2$SNVnum[s.df2$group == "E group"],
+                       s.df2$SNVnum[s.df2$group == "C group"])
+s.df2$group <- factor(s.df2$group,levels = c("E group","C group"))
+
+p.box <-  ggplot(data = s.df2, aes(x=group,y=SNVnum/1000) ) +
+  geom_boxplot() +
+  stat_boxplot(geom = "errorbar") +
+  geom_jitter(width =0.3,shape = 2,size=1.5)+
+  annotate("text",x= 2,y=10,label = paste0("P=",as.character( round(P.value$p.value,4)))  ) + 
+  theme_bw() + 
+  theme(panel.grid = element_blank()) + 
+  ylab("No. of SNV (per kilo)") 
+ggsave(p.box,file = paste0(O.path,"SNV.each sample.stat.boxplot.pdf"),height = 2,width = 2)
+ 
+
+```
+
+
+## SNP, single sample
+```{r}
+iSNVtable.P <- "/disk/lhj_4T/lhj/HP/process/NGS_map2PersonResptGnm/table_filtedRepeat_NA/"
+Annotable.P <- "/disk/lhj_4T/lhj/HP/process/NGS_map2PersonResptGnm/table/allvsf_anno/"
+SNV.all <- data.frame()
+ s.df <- list()
+Pers <- c(seq(1,12),seq(15,25)) 
+#Pers <- c(seq(1)) 
+persIDs <- c()
+for (Per.id in Pers) {
+  print(Per.id)
+  Per <- paste0("P",Per.id)
+  Persons <- c(Persons,Per)
+  iSNVtable.F <- paste0(iSNVtable.P,Per,".Filted-Repeat_NA.all.iSNV_with_SNP.pyResults.txt")
+  iSNVtable <- read.table(iSNVtable.F,sep = "\t",header = T,comment.char = " ")
+  rownames(iSNVtable) <- iSNVtable$X.Posi
+  iSNVtable$X.Posi <- NULL
+
+  SNV.stat.df <-  rowSums(as.matrix(iSNVtable)>=0.95 & as.matrix(iSNVtable)!="NO" ) %>% as.data.frame()
+   colnames(SNV.stat.df) <- "count.SNP"
+   SNV.stat.df$Locus <- rownames(SNV.stat.df)
+  
+  # all.Anno <- data.frame()
+  # for (smp.1 in colnames(iSNVtable)) {
+  #   smp.2 <- gsub("[.]", "-", smp.1)
+  #   annF <- paste0(Annotable.P,smp.2, ".minFreq0.02.snpEffAnno.vcf")
+  #   Annotable <- read.table(annF,sep = "\t",header = F,comment.char = "#")
+  #   Annotable$Anno <- str_split_fixed(str_split_fixed(Annotable$V8,";",7)[,6],"[|]",3)[,2]  
+  # 
+  #  Annotable.sub <- Annotable[,c("V2","Anno" )]
+  #  colnames(Annotable.sub) <- c("Locus","Anno") 
+  #  all.Anno <- rbind(all.Anno,Annotable.sub) 
+  # }
+  # all.Anno <- all.Anno %>% unique()
+  #  
+  # 
+  #  for (smp.1 in colnames(iSNVtable)) {
+  #    samp.iSNV <- iSNVtable[,c(smp.1,smp.1)]
+  #    samp.iSNV$Locus <- rownames(samp.iSNV)
+  #    samp.iSNV <- samp.iSNV[,c("Locus",smp.1)]
+  #    colnames(samp.iSNV)[2] <- "Freq"
+  #    samp.iSNV <- samp.iSNV  %>% filter(Freq != "NO",
+  #                                       Freq>=0.05,
+  #                                       Freq<0.95 )
+  #    anno.df <- merge(samp.iSNV,all.Anno,all.x = T)
+  #    
+  #    s.df <- table(anno.df$Anno) %>% as.data.frame()
+  #    s.df$sum <- nrow(s.df)
+  #  }
+  # 
+ 
+   for (smp.1 in colnames(iSNVtable)) {
+     smp.r <-  strsplit(smp.1,"_2_")[[1]][1]
+     if(strsplit(smp.r,"[.]")[[1]][3] == "d" ){
+       samp.ID <- "A1"
+     }
+      if(strsplit(smp.r,"[.]")[[1]][3] == "x"  ){
+       samp.ID <- "A2"
+      }
+      if(strsplit(smp.r,"[.]")[[1]][3] == "j" ){
+       samp.ID <- "IA"
+      }
+      if(strsplit(smp.r,"[.]")[[1]][3] == "t" ){
+       samp.ID <- "C"
+      }
+     samp.iSNV <- iSNVtable[,c(smp.1,smp.1)]
+     samp.iSNV$Locus <- rownames(samp.iSNV)
+     samp.iSNV <- samp.iSNV[,c("Locus",smp.1)]
+     colnames(samp.iSNV)[2] <- "Freq"
+     samp.iSNV <- samp.iSNV  %>% filter(Freq != "NO",
+                                        Freq>=0.95 )
+    if(Per.id <= 15){group = "E group"  }
+    if(Per.id > 15){group = "C group" }
+    s.df[[smp.1]] <- c(smp.1,strsplit(smp.r,"[.]")[[1]][1],samp.ID,group,nrow(samp.iSNV))
+   }
+   ps <- strsplit(smp.r,"[.]")[[1]][1]
+   if(!ps %in% persIDs){  persIDs <- c(persIDs,ps)}
+}
+  
+ s.df1 <- s.df %>% as.data.frame()
+s.df2 <- t(s.df1) %>% as.data.frame()
+colnames(s.df2) <- c("comp","Person","Region","group","SNPnum")
+s.df2$SNVnum <- as.numeric(s.df2$SNPnum)
+ 
+s.df2$Person <- factor(s.df2$Person,levels = persIDs)
+p.pont <-  ggplot(data = s.df2, aes(x=Person,y=SNVnum/1000,color = Region) ) +
+  #geom_boxplot() +
+  #stat_boxplot(geom = "errorbar") +
+  geom_jitter(width =0.2,size=1.5)+  #shape = 21,
+  scale_y_continuous(
+    breaks = c(0, 5, 10,20, 30, 40, 50),  # 设置 y 轴刻度
+    labels = c("0", "5", "10","20", "30", "40", "50")  # 对应的标签
+  ) +
+  geom_hline(aes(yintercept=2),linetype="dashed") +
+  theme_bw() + 
+  theme(panel.grid = element_blank()) + 
+  ylab("No. of SNP (kilo)") 
+ggsave(p.pont,file = paste0(O.path,"SNP.each sample.stat.pdf"),height = 2,width = 8)
+
+
+ O.list <- list()
+ O.list[["SNP for each sample"]] <- s.df2
+ write.xlsx(O.list,paste0(O.path,"All.Pers.SNP.for each sample.xlsx"))
+
+ 
+ ##boxplot
+ s.df2 <- s.df2 %>% filter(!comp %in% c("P8.E.d_2_P8.E.x","P22.C_sL.t_2_P22.C_sL.d") )
+P.value <- wilcox.test(s.df2$SNVnum[s.df2$group == "E group"],
+                       s.df2$SNVnum[s.df2$group == "C group"])
+s.df2$group <- factor(s.df2$group,levels = c("E group","C group"))
+
+p.box <-  ggplot(data = s.df2, aes(x=group,y=SNVnum/1000) ) +
+  geom_boxplot() +
+  stat_boxplot(geom = "errorbar") +
+  geom_jitter(width =0.3,shape = 2,size=1.5)+
+  annotate("text",x= 2,y=10,label = paste0("P=",as.character( round(P.value$p.value,4)))  ) + 
+  theme_bw() + 
+  theme(panel.grid = element_blank()) + 
+  ylab("No. of SNP (per kilo)") 
+ggsave(p.box,file = paste0(O.path,"SNP.each sample.stat.boxplot.pdf"),height = 2,width = 2)
+ 
+
+```
+
+
+
+
+### corr between NGS and CCS
+```{r}
+Big.mg.df <- data.frame()
+Pers <- c(1,2,4,5,6,7,18,19,20,21,22,23,24,25) 
+for (Per.id in Pers) {
+  Per <- paste0("P",Per.id)
+  Persons <- c(Persons,Per)
+
+  # iSNVtable.P <- "/disk/lhj_4T/lhj/HP/process/NGS_map2PersonResptGnm/table/"
+  # iSNVtable.F <- paste0(iSNVtable.P,Per,"/","all.iSNV_with_SNP.pyResults.txt")
+  iSNVtable.P <- "/disk/lhj_4T/lhj/HP/process/NGS_map2PersonResptGnm/table_filtedRepeat_NA/"
+  iSNVtable.F <- paste0(iSNVtable.P,Per,".Filted-Repeat_NA.all.iSNV_with_SNP.pyResults.txt")
+  iSNVtable <- read.table(iSNVtable.F,sep = "\t",header = T,comment.char = " ")
+  rownames(iSNVtable) <- iSNVtable$X.Posi
+  #iSNVtable$X.Posi <- NULL
+  iSNVtable.w <-  melt(iSNVtable,id.vars = c("X.Posi"),variable.name = "sample",value.name = "NGS.Freq")
+  iSNVtable.w$Person <- Per
+  iSNVtable.w <- iSNVtable.w %>% mutate("P.S" = paste0(sample,"_",X.Posi))
+  
+  CCS.P <- "/disk/lhj_4T/lhj/HP/process/CCS_map2PersonRespectSamp/table/"
+  CCS.F <- paste0(CCS.P,Per,"/all.iSNV_with_SNP.pyResults.txt")
+  CCS.df <- read.table(CCS.F,sep = "\t",header = T,comment.char = " ")
+  rownames(CCS.df) <- CCS.df$X.Posi
+  CCS.df <- CCS.df[rownames(iSNVtable),]
+  CCS.df$snv.SNP <- NULL
+  CCS.df.w <-  melt(CCS.df,id.vars = c("X.Posi"),variable.name = "sample",value.name = "CCS.Freq")
+  CCS.df.w$Person <- Per
+  CCS.df.w <- CCS.df.w %>% mutate("P.S" = paste0(sample,"_",X.Posi))
+  CCS.df.w <- CCS.df.w[,c("P.S","CCS.Freq")]
+  
+  mg <- merge(iSNVtable.w,CCS.df.w,by.x = "P.S",by.y = "P.S")
+  Big.mg.df <- rbind(Big.mg.df,mg)
+  
+}
+
+Big.mg.df[Big.mg.df == "NO"] <- "0"
+Big.mg.df[Big.mg.df == "NO"] <- "0"
+Big.mg.df$NGS.Freq <- as.numeric(Big.mg.df$NGS.Freq)
+Big.mg.df$CCS.Freq <- as.numeric(Big.mg.df$CCS.Freq)
+Big.mg.df <- Big.mg.df %>% filter(NGS.Freq!=0 & CCS.Freq!=0)
+
+library("ggpubr")
+p.point <-  ggplot(data=Big.mg.df,aes(x=NGS.Freq,y=CCS.Freq)) + 
+  geom_point(alpha = 0.3) + 
+  geom_smooth(method = "lm",fill = "lightgrey") + 
+  stat_cor(method = "pearson",label.x = 0.1, label.y = 0.9)+
+  theme_bw() + 
+  theme(panel.grid = element_blank())  
+ggsave(p.point,file = paste0(O.path,"iSNV.NGS.CCS.FreqCorr.pdf"),height = 3.5,width = 4)
+ggsave(p.point,file = paste0(O.path,"iSNV.NGS.CCS.FreqCorr.tif"),height = 3.5,width = 4)
+ 
+
+smp.c <- c()
+R.c <- c()
+P.c <- c()
+for (SAMP in unique(Big.mg.df$sample)) {
+  print(SAMP)
+ samp.df <- Big.mg.df[Big.mg.df$sample == SAMP,]
+  t.rest <-  cor.test(samp.df$NGS.Freq,samp.df$CCS.Freq,alternative = "two.side",method = "pearson")
+  R <-  t.rest$estimate
+  P <-  t.rest$p.value
+  smp.c <- c(smp.c,SAMP)
+  R.c <- c(R.c,R)
+  P.c <- c(P.c,P)
+
+  p.point <-  ggplot(data=samp.df,aes(x=NGS.Freq,y=CCS.Freq)) + 
+  geom_point(alpha = 0.3) + 
+  geom_smooth(method = "lm",fill = "lightgrey") + 
+  stat_cor(method = "pearson",label.x = 0.1, label.y = 0.9)+
+  xlim(0,1) + 
+  ylim(0,1) +
+  theme_bw() + 
+  theme(panel.grid = element_blank())  
+  ggsave(p.point,file = paste0(O.path,SAMP,".iSNV.NGS.CCS.FreqCorr.pdf"),height = 3.5,width = 4)
+  ggsave(p.point,file = paste0(O.path,SAMP,".iSNV.NGS.CCS.FreqCorr.tif"),height = 3.5,width = 4)
+  }
+stat.df <-  data.frame("sammple" = smp.c,
+           "R" = R.c,
+           "P" = P.c
+           )
+
+
+
+
+
+
+```
+
+
+

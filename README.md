@@ -23,17 +23,19 @@
 - 
 
 ## Repo Contents
-
-- data: genome sequences and meta data of sample
+### data: genome sequences and meta data of sample
 
   genomes: genomes of each sample(fasta format)
 
   public genomes:
      List of public strains for phylogenetic analysis 
 
-## 1.genome_assembly : The script for genome assembly
+### 1.genome_assembly : The script for genome assembly
 
-## 2.Alignment_to_representative_genome : The script for genome assembly
+### 2.Alignment_to_representative_genome : The script for genome assembly
+
+### 3.iSNV_SNP_calling :
+
 
 
 

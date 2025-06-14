@@ -1,5 +1,6 @@
 # clonal phasing based on Long sequencing reads
 
+ 
 
 # 
 
@@ -23,15 +24,18 @@
 
 ## Repo Contents
 
-- meta-data: sample data and preprocessed data used for analysis.
+- data: genome sequences and meta data of sample
 
-  PA ref genome:
+  genomes: genomes of each sample(fasta format)
 
-  PA ref gff file :
+  public genomes:
+     List of public strains for phylogenetic analysis 
 
-  dir: genomes of the other bacteria 
+## 1.genome_assembly : The script for genome assembly
 
-- results: 
+## 2.Alignment_to_representative_genome : The script for genome assembly
+
+
 
 - scripts:
 

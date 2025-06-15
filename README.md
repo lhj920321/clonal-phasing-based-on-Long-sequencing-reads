@@ -15,8 +15,7 @@
 - R version 4.4.3
 
 - RAxML
-- R version 3.5.1
-- bwa
+- bwa  
 - samtools
 - Spades
 
@@ -24,32 +23,29 @@
 
 ## Repo Contents
 ### data: genome sequences and meta data of sample
-
   genomes: genomes of each sample(fasta format)
-
   public genomes:
      List of public strains for phylogenetic analysis 
 
-### 1.genome_assembly : The script for genome assembly
+### 1.genome_assembly: 
+     The scripts for genome assembly and gene annotation
 
-### 2.Alignment_to_representative_genome : The script for genome assembly
+### Phylogenetic analysis
+      
+### 2.Alignment_to_representative_genome: 
+     The scripts for genome assembly
 
-### 3.iSNV_SNP_calling :
+### 3.iSNV_SNP_calling: 
+   -- Step1:   Extract nucleotide composition at each site from mpileup file
+             Usage: bash step1_mpileup2ntfreq.sh  $Numb_of_Thread  $path_of_mpileup
+   -- Step2:  iSNV and SNP calling for samples of each person
+            Usage: snakemake -s iSNV_calling-pipeline.py -p
+            input file:  config file: List file of nucleotide composition files from multiple samples(One sample per line), file name : {person}.ntfreq_file_list.txt
+            Modify the corresponding file paths in the script according to the specific project
 
+### 4. Genome_phasing_CCS_reads
+   -- Step1: filter.SNV.locus
 
-
-
-- scripts:
-
-## SNPs calling
-
-1. map to reference genome :
-
-2. SNPs calling 
-
-   iSNV_calling.sh 3
-
-   iSNV_calling.sh 4
 
 
 
